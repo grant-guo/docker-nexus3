@@ -20,6 +20,7 @@ LABEL vendor=Sonatype \
       com.sonatype.license="Apache License, Version 2.0" \
       com.sonatype.name="Nexus Repository Manager base image"
 
+ARG KEYSTORE_PASSWORD
 ARG NEXUS_VERSION=3.13.0-01
 ARG NEXUS_DOWNLOAD_URL=https://download.sonatype.com/nexus/3/nexus-${NEXUS_VERSION}-unix.tar.gz
 ARG NEXUS_DOWNLOAD_SHA256_HASH=5d1890f45e95e2ca74e62247be6b439482d2fe4562a7ec8ae905c4bdba6954ce
@@ -57,7 +58,17 @@ RUN curl -L https://www.getchef.com/chef/install.sh | bash \
 
 VOLUME ${NEXUS_DATA}
 
-EXPOSE 8081
+RUN cd /root \
+    && yum install -y which wget openssl sudo net-tools \
+    && wget http://dl.fedoraproject.org/pub/epel/7/x86_64/Packages/p/pwgen-2.08-1.el7.x86_64.rpm \
+    && rpm -Uvh pwgen-2.08-1.el7.x86_64.rpm
+RUN mkdir /install-scripts
+COPY enable-ssl.sh /install-scripts/
+COPY ./ssl/grant.jks ${NEXUS_HOME}/etc/ssl/keystore.jks
+RUN KEYSTORE_PASSWORD_PATTERN=s/password/${KEYSTORE_PASSWORD}/g \
+    && sed -i ${KEYSTORE_PASSWORD_PATTERN} ${NEXUS_HOME}/etc/jetty/jetty-https.xml
+
+EXPOSE 8081 8443
 USER nexus
 
 ENV INSTALL4J_ADD_VM_PARAMS="-Xms1200m -Xmx1200m -XX:MaxDirectMemorySize=2g -Djava.util.prefs.userRoot=${NEXUS_DATA}/javaprefs"
